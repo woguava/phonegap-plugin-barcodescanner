@@ -18,6 +18,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.CallbackContext;
@@ -27,6 +28,16 @@ import org.apache.cordova.PermissionHelper;
 import com.google.zxing.client.android.CaptureActivity;
 import com.google.zxing.client.android.encode.EncodeActivity;
 import com.google.zxing.client.android.Intents;
+
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.MultiFormatWriter;
+import com.google.zxing.WriterException;
+import com.google.zxing.common.BitMatrix;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
 /**
  * This calls out to the ZXing barcode reader and returns the result.
@@ -241,6 +252,38 @@ public class BarcodeScanner extends CordovaPlugin {
         }
     }
 
+
+    /**
+     * 生成QRCode（二维码）
+     *
+     * @param
+     * @return
+     * @throws WriterException
+     */
+    public static Bitmap createQRCode(String qrInfo) throws WriterException {
+
+      if (qrInfo == null || qrInfo.equals("")) {
+        return null;
+      }
+      // 生成二维矩阵,编码时指定大小,不要生成了图片以后再进行缩放,这样会模糊导致识别失败
+      BitMatrix matrix = new MultiFormatWriter().encode(qrInfo,BarcodeFormat.QR_CODE, 300, 300);
+      int width = matrix.getWidth();
+      int height = matrix.getHeight();
+
+      // 二维矩阵转为一维像素数组,也就是一直横着排了
+      int[] pixels = new int[width * height];
+      for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+          if (matrix.get(x, y)) {
+            pixels[y * width + x] = 0xff000000;
+          }
+        }
+      }
+      Bitmap bitmap = Bitmap.createBitmap(width, height,Bitmap.Config.ARGB_8888);
+      bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
+      return bitmap;
+    }
+
     /**
      * Initiates a barcode encode.
      *
@@ -248,14 +291,57 @@ public class BarcodeScanner extends CordovaPlugin {
      * @param data The data to encode in the bar code.
      */
     public void encode(String type, String data) {
-        Intent intentEncode = new Intent(this.cordova.getActivity().getBaseContext(), EncodeActivity.class);
-        intentEncode.setAction(Intents.Encode.ACTION);
-        intentEncode.putExtra(Intents.Encode.TYPE, type);
-        intentEncode.putExtra(Intents.Encode.DATA, data);
-        // avoid calling other phonegap apps
-        intentEncode.setPackage(this.cordova.getActivity().getApplicationContext().getPackageName());
+    /*
+      //The original plugin implementation
+      Intent intentEncode = new Intent(this.cordova.getActivity().getBaseContext(), EncodeActivity.class);
+      intentEncode.setAction(Intents.Encode.ACTION);
+      intentEncode.putExtra(Intents.Encode.TYPE, type);
+      intentEncode.putExtra(Intents.Encode.DATA, data);
+      // avoid calling other phonegap apps
+      intentEncode.setPackage(this.cordova.getActivity().getApplicationContext().getPackageName());
 
-        this.cordova.getActivity().startActivity(intentEncode);
+      this.cordova.getActivity().startActivity(intentEncode);
+      */
+      /**
+      * new implementation wangxg  2017/5/16
+      **/
+      try {
+          Bitmap bitmap = createQRCode(data);
+          if(bitmap != null){
+            String fileDirPath = this.cordova.getActivity().getBaseContext().getFilesDir().getAbsolutePath();
+            String fileNamePath = fileDirPath + File.separator + "qr" + System.currentTimeMillis() + ".png";
+            File qrfile = new File(fileNamePath);
+            if(qrfile != null){
+              FileOutputStream outStream = new FileOutputStream(qrfile);
+              if( bitmap.compress(Bitmap.CompressFormat.PNG,100,outStream) ){
+                outStream.flush();
+                outStream.close();
+
+                JSONObject resultJson = new JSONObject();
+                resultJson.put("format","QR_CODE");
+                resultJson.put("file",fileNamePath);
+                this.callbackContext.success(resultJson);
+              }else{
+                this.callbackContext.error("qr code file faild!");
+              }
+            }
+          }else{
+            this.callbackContext.error("qr code create faild!");
+          }
+      } catch (FileNotFoundException e) {
+        e.printStackTrace();
+        this.callbackContext.error(e.getMessage());
+      } catch (WriterException e) {
+        e.printStackTrace();
+        this.callbackContext.error(e.getMessage());
+      } catch (IOException e) {
+        e.printStackTrace();
+        this.callbackContext.error(e.getMessage());
+      } catch (JSONException e) {
+        e.printStackTrace();
+        this.callbackContext.error(e.getMessage());
+      }
+
     }
 
     /**
