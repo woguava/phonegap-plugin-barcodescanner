@@ -29,6 +29,7 @@ import com.google.zxing.client.android.CaptureActivity;
 import com.google.zxing.client.android.encode.EncodeActivity;
 import com.google.zxing.client.android.Intents;
 
+import com.google.zxing.EncodeHintType;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.WriterException;
@@ -38,6 +39,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Hashtable;
 
 /**
  * This calls out to the ZXing barcode reader and returns the result.
@@ -265,8 +267,11 @@ public class BarcodeScanner extends CordovaPlugin {
       if (qrInfo == null || qrInfo.equals("")) {
         return null;
       }
+      //设置字符编码
+      Hashtable hints = new Hashtable();
+      hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
       // 生成二维矩阵,编码时指定大小,不要生成了图片以后再进行缩放,这样会模糊导致识别失败
-      BitMatrix matrix = new MultiFormatWriter().encode(qrInfo,BarcodeFormat.QR_CODE, 300, 300);
+      BitMatrix matrix = new MultiFormatWriter().encode(qrInfo,BarcodeFormat.QR_CODE, 300, 300,hints);
       int width = matrix.getWidth();
       int height = matrix.getHeight();
 
